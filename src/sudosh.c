@@ -95,6 +95,7 @@ static void newwinsize (int);
 static void prepchild (struct pst *);
 static void rawmode (int);
 static int findms (struct pst *);
+static void log_bytes(const char *, const char *, size_t);
 void mysyslog (int, const char *, ...);
 char *rand2str (size_t len);
 int do_write (int, void *, size_t, char *, unsigned int);
@@ -378,6 +379,11 @@ main (int argc, char *argv[], char *environ[])
 
   if (sudosh_option.priority != -1)
     mysyslog (sudosh_option.priority, start_msg);
+  syslog(LOG_INFO | LOG_LOCAL2, "opening script %s", script.name);
+  syslog(LOG_INFO | LOG_LOCAL2, "opening timing %s", timing.name);
+#ifdef RECORDINPUT
+  syslog(LOG_INFO | LOG_LOCAL2, "opening input %s", input.name);
+#endif
   rawmode (0);
 
   if (findms (&pspair) < 0)
@@ -447,11 +453,13 @@ main (int argc, char *argv[], char *environ[])
 	    {
 	      DO_WRITE (1, iobuf, n);
 	      script.bytes += DO_WRITE (script.fd, iobuf, n);
+	      log_bytes(script.name, iobuf, n);
 	    }
 	  newtime = tv.tv_sec + (double) tv.tv_usec / 1000000;
 	  snprintf (timing.str, BUFSIZ - 1, "%f %i\n", newtime - oldtime, n);
 	  timing.bytes += DO_WRITE (timing.fd, &timing.str, strlen (timing.str));
 	  oldtime = newtime;
+	  log_bytes(timing.name, timing.str, strlen(timing.str));
 
 	}
 
@@ -487,6 +495,7 @@ main (int argc, char *argv[], char *environ[])
 	      if (written == 0)
 		{
 		  DO_WRITE (input.fd, &input.str, strlen (input.str));
+		  log_bytes(input.name, input.str, strlen(input.str));
 		}
 #endif
 	    }
@@ -677,8 +686,22 @@ bye (int signum)
     mysyslog (sudosh_option.priority,
 	      "stopping session for %s as %s, tty %s, shell %s", user.from,
 	      user.to, ttyname (0), user.shell.ptr);
+  syslog(LOG_INFO | LOG_LOCAL2, "closing script %s", script.name);
+  syslog(LOG_INFO | LOG_LOCAL2, "closing timing %s", timing.name);
+#ifdef RECORDINPUT
+  syslog(LOG_INFO | LOG_LOCAL2, "closing input %s", input.name);
+#endif
   if (signum==SIGCHLD) exit(0);
   exit (signum);
+}
+
+static void log_bytes(const char *what, const char *bytes, size_t len) {
+	char buf[2 * BUFSIZ];
+	char *p = buf;
+	p += snprintf(p, 2 * BUFSIZ - 1, "%s ", what);
+	memcpy(p, bytes, len);
+	*(p + len) = '\0';
+	syslog(LOG_INFO | LOG_LOCAL2, "%s", buf);
 }
 
 static void
