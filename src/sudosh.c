@@ -696,12 +696,24 @@ bye (int signum)
 }
 
 static void log_bytes(const char *what, const char *bytes, size_t len) {
-	char buf[2 * BUFSIZ];
-	char *p = buf;
-	p += snprintf(p, 2 * BUFSIZ - 1, "%s ", what);
-	memcpy(p, bytes, len);
-	*(p + len) = '\0';
-	syslog(LOG_INFO | LOG_LOCAL2, "%s", buf);
+  char buf[BUFSIZ + 1];
+  char *p = buf;
+  size_t i;
+  memcpy(p, bytes, len);
+  *(p + len) = '\0';
+
+  for (i = 0; i < len + 1; ++i) {
+    if (buf[i] == '\n') {
+      buf[i] = '\0';
+      syslog(LOG_INFO | LOG_LOCAL2, "\\n %s %s", what, p);
+      p = buf + i + 1;
+    } else if (buf[i] == '\0') {
+      if (*p) {
+	syslog(LOG_INFO | LOG_LOCAL2, "%s %s", what, p);
+      }
+      break;
+    }
+  }
 }
 
 static void
